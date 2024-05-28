@@ -11,4 +11,6 @@ export const findOne = (
 ) => userModel.findOne({ ...data, isActive: true }, projection);
 export const update = (id: string, data: UpdateQuery<User>) =>
   userModel.updateOne({ _id: id, isActive: true }, data);
+export const updateNewUser = (id: string, data: UpdateQuery<User>) =>
+  userModel.findOneAndUpdate({ _id: id, isActive: true }, data, { new: true });
 export const del = (id: string) => update(id, { isActive: false });

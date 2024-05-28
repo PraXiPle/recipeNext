@@ -12,3 +12,4 @@ export const findUsers = async (data: FilterQuery<User> = {}) => {
   return find(data);
 };
 
+

@@ -1,32 +1,50 @@
 "use server";
-import { sessionOptions, SessionData } from "@/lib/interface/sessionData";
-import { create, update, findOne } from "../DL/controllers/user.Controllers";
+import {
+  sessionOptions,
+  SessionData,
+  defualtSession,
+} from "@/lib/interface/sessionData";
+import {
+  create,
+  update,
+  findOne,
+  updateNewUser,
+} from "../DL/controllers/user.Controllers";
 import { getIronSession } from "iron-session";
 import { cookies } from "next/headers";
 import { cloudinary } from "@/lib/functions/cloudinary";
+import connectToDB from "../db";
+import { redirect } from "next/navigation";
+import { User } from "@/lib/interface/user";
 
 export const getSession = async () => {
-  const session = await getIronSession<SessionData>(cookies(), sessionOptions);
+  const cookieHeader = cookies();
+  const session = await getIronSession<SessionData>(
+    cookieHeader,
+    sessionOptions
+  );
+  if (!session.isLoggedIn) {
+    session.isLoggedIn = defualtSession.isLoggedIn;
+  }
+
   return session;
 };
 
 export const registerUser = async (formData: FormData) => {
+  await connectToDB();
+  const userName = formData.get("userName") as string,
+    password = formData.get("password") as string;
   try {
-    // console.log({
-    //   userName: formData.get("userName") as string,
-    //   password: formData.get("passw") as string,
-    // });
-
-    const newUser = create({
-      userName: formData.get("userName") as string,
-      password: formData.get("password") as string,
+    const newUser = await create({
+      userName: userName,
+      password: password,
     });
-    return newUser;
   } catch (error) {
-    console.log(error);
-    throw "error user alredy exist ";
+    throw "user Alredy exist";
   }
+  redirect("/");
 };
+
 export const uploadImage = async (formData: FormData) => {
   const file = formData.get("img") as File;
   const arrayBuffer = await file.arrayBuffer();
@@ -38,26 +56,69 @@ export const uploadImage = async (formData: FormData) => {
       })
       .end(buffer);
   }).then((uploadResult: any) => {
-    console.log(uploadResult);
-
+    return uploadResult;
     // update("", { img: uploadResult.url });
   });
 };
 export const login_User = async (formData: FormData) => {
-  const { userName, password } = Object.fromEntries(formData);
+  `use server`;
+  await connectToDB();
 
-  // const userName = formData.get("userName") as string;
-  // const password = formData.get("userName") as string;
-  const user = await findOne({ userName }, "+password");
+  const session = await getSession();
+  const { userName, password } = Object.fromEntries(formData);
+  const user: User = await findOne({ userName }, "+password");
   if (!user) throw "no user";
   if (user.password !== password) throw "password dont mach ";
-  console.log(user);
-  return user;
+
+  session.userId = user._id;
+  session.userName = user.userName;
+  session.img = user.img || null;
+  session.isLoggedIn = true;
+  await session.save();
+  redirect("/");
 };
 
-export const updateUser = async (id: string, formData: FormData) => {
-  return update(id, {
-    userName: formData.get("userName") as string,
-    // password: formData.get("userName") as string,
+export const updateUser = async (formData: FormData) => {
+  const session = await getSession();
+  const userName = formData.get("userName") as string;
+  const file = formData.get("img") as File;
+
+  if (file.size > 0) {
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = new Uint8Array(arrayBuffer);
+    new Promise((resolve) => {
+      cloudinary.uploader
+        .upload_stream({ folder: "next_profiles" }, (error, uploadResult) => {
+          return resolve(uploadResult);
+        })
+        .end(buffer);
+    }).then(async (uploadResult: any) => {
+
+      const userFromDb = await updateNewUser(session.userId, {
+        userName: userName,
+        img: uploadResult.url,
+      });
+      console.log(userFromDb);
+      session.userName = userFromDb.userName;
+      session.img = userFromDb.img;
+      await session.save();
+      console.log("finish");
+      
+    });
+  }
+
+  const userFromDb = await updateNewUser(session.userId, {
+    userName: userName,
   });
+  console.log(userFromDb);
+  session.userName = userFromDb.userName;
+  await session.save();
+
+  // redirect("/");
+};
+
+export const logOut = async () => {
+  const session = await getSession();
+  session.destroy();
+  redirect("/");
 };
