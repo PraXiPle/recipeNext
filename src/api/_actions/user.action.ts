@@ -93,7 +93,6 @@ export const updateUser = async (formData: FormData) => {
         })
         .end(buffer);
     }).then(async (uploadResult: any) => {
-
       const userFromDb = await updateNewUser(session.userId, {
         userName: userName,
         img: uploadResult.url,
@@ -103,7 +102,6 @@ export const updateUser = async (formData: FormData) => {
       session.img = userFromDb.img;
       await session.save();
       console.log("finish");
-      
     });
   }
 

@@ -19,7 +19,7 @@ export const middleware = async (req: NextRequest) => {
 
   if (!session.isLoggedIn) {
     session.isLoggedIn = defualtSession.isLoggedIn;
-    return NextResponse.redirect(new URL("/", req.url));
+    return NextResponse.redirect(new URL("/login", req.url));
   }
   return res;
 };
